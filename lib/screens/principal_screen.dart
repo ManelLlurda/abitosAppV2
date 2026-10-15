@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../models/habito.dart';
 import '../services/preferencias_service.dart';
 import '../widgets/habito_tile.dart';
@@ -72,25 +71,26 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
       appBar: AppBar(
         title: const Text('HabitosApp'),
         actions: [
-          // Botón para gestionar hábitos
           IconButton(
+            tooltip: 'Gestionar hábitos',
             icon: const Icon(Icons.edit_note),
             onPressed: () => _ir(GestionHabitosScreen(service: widget.service)),
           ),
-          // Botón de estadísticas
           IconButton(
-            icon: const Icon(Icons.bar_chart),
+            tooltip: 'Estadísticas',
+            icon: const Icon(Icons.bar_chart_rounded),
             onPressed: () => _ir(EstadisticasScreen(service: widget.service)),
           ),
-          // Botón de ajustes
           IconButton(
-            icon: const Icon(Icons.settings),
+            tooltip: 'Ajustes',
+            icon: const Icon(Icons.settings_rounded),
             onPressed: () => _ir(AjustesScreen(
               service: widget.service,
               onAjustesCambiados: widget.onAjustesCambiados,
               onBorrarDatos: widget.onBorrarDatos,
             )),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       // Si todavía no hay datos, mostramos el indicador de carga
@@ -100,8 +100,105 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
     );
   }
 
+  // Tarjeta de cabecera con degradado, saludo y progreso circular
+  Widget _cabecera(int hechos, int objetivo) {
+    final scheme = Theme.of(context).colorScheme;
+    final progreso = (hechos / objetivo).clamp(0.0, 1.0).toDouble();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.primary,
+            Color.lerp(scheme.primary, Colors.cyan, 0.45)!,
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.primary.withOpacity(0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hola, ${widget.service.nombre} 👋',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: scheme.onPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // Progreso del día, por ejemplo "2 de 5 hábitos"
+                Text(
+                  '$hechos de $objetivo hábitos hoy',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: scheme.onPrimary.withOpacity(0.9),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                // La barra va de 0 a 1; con clamp evitamos pasarnos de 1
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(
+                    value: progreso,
+                    minHeight: 10,
+                    backgroundColor: Colors.white.withOpacity(0.25),
+                    valueColor: const AlwaysStoppedAnimation(Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 20),
+          // Círculo con el porcentaje
+          SizedBox(
+            width: 72,
+            height: 72,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: CircularProgressIndicator(
+                    value: progreso,
+                    strokeWidth: 8,
+                    strokeCap: StrokeCap.round,
+                    backgroundColor: Colors.white.withOpacity(0.25),
+                    valueColor: const AlwaysStoppedAnimation(Colors.white),
+                  ),
+                ),
+                Text(
+                  '${(progreso * 100).round()}%',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: scheme.onPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Parte de la pantalla cuando los datos ya están cargados
   Widget _contenido(List<Habito> habitos) {
+    final scheme = Theme.of(context).colorScheme;
     final objetivo = widget.service.objetivoDiario;
     // Contamos cuántos hábitos están hechos hoy
     final hechos = habitos.where((h) => h.completadoHoy).length;
@@ -109,37 +206,57 @@ class _PrincipalScreenState extends State<PrincipalScreen> {
     final visibles =
     _ocultar ? habitos.where((h) => !h.completadoHoy).toList() : habitos;
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(
-          'Hola, ${widget.service.nombre} 👋',
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        // Progreso del día, por ejemplo "2 de 5 hábitos"
-        Text('$hechos de $objetivo hábitos'),
-        const SizedBox(height: 8),
-        // La barra va de 0 a 1; con clamp evitamos pasarnos de 1
-        LinearProgressIndicator(
-          value: (hechos / objetivo).clamp(0.0, 1.0).toDouble(),
-          minHeight: 8,
-        ),
-        const SizedBox(height: 16),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 700),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          children: [
+            _cabecera(hechos, objetivo),
+            const SizedBox(height: 24),
+            if (visibles.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.only(left: 4, bottom: 12),
+                child: Text(
+                  'Tus hábitos de hoy',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+              ),
 
-        // Mensaje si no hay nada que mostrar
-        if (visibles.isEmpty)
-          Text(
-            habitos.isEmpty
-                ? 'Aún no tienes hábitos. Crea uno con el icono de arriba.'
-                : '¡Todo hecho por hoy! 🎉',
-            textAlign: TextAlign.center,
-          ),
+            // Mensaje si no hay nada que mostrar
+            if (visibles.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Column(
+                  children: [
+                    Icon(
+                      habitos.isEmpty
+                          ? Icons.add_task_rounded
+                          : Icons.emoji_events_rounded,
+                      size: 72,
+                      color: scheme.primary.withOpacity(0.6),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      habitos.isEmpty
+                          ? 'Aún no tienes hábitos. Crea uno con el icono de arriba.'
+                          : '¡Todo hecho por hoy! 🎉',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
-        // Un HabitoTile por cada hábito visible
-        for (final h in visibles)
-          HabitoTile(habito: h, onChanged: (_) => _alternar(h)),
-      ],
+            // Un HabitoTile por cada hábito visible
+            for (final h in visibles)
+              HabitoTile(habito: h, onChanged: (_) => _alternar(h)),
+          ],
+        ),
+      ),
     );
   }
 }

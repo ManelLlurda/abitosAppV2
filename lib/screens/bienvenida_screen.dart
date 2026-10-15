@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../services/preferencias_service.dart';
 
 // Pantalla de bienvenida: solo sale la primera vez.
@@ -42,7 +41,6 @@ class _BienvenidaScreenState extends State<BienvenidaScreen> {
 
     // PERSISTENCIA: guardamos nombre, objetivo y marcamos que ya vimos la bienvenida
     await widget.service.guardarBienvenida(nombre, objetivo);
-
     // Avisamos a main.dart para que cambie a la pantalla principal
     await widget.onTerminar();
   }
@@ -57,61 +55,101 @@ class _BienvenidaScreenState extends State<BienvenidaScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       body: SafeArea(
-        // SingleChildScrollView evita errores cuando sale el teclado
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
-              const Icon(Icons.check_circle_outline, size: 80),
-              const SizedBox(height: 16),
-              const Text(
-                '¡Bienvenido a HabitosApp!',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 32),
+        child: Center(
+          // ConstrainedBox: en pantallas anchas (web) el formulario no se estira
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            // SingleChildScrollView evita errores cuando sale el teclado
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Logo con degradado
+                  Container(
+                    width: 110,
+                    height: 110,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          scheme.primary,
+                          Color.lerp(scheme.primary, Colors.cyan, 0.5)!,
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: scheme.primary.withOpacity(0.35),
+                          blurRadius: 24,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Icon(Icons.check_rounded,
+                        size: 64, color: scheme.onPrimary),
+                  ),
+                  const SizedBox(height: 28),
+                  const Text(
+                    '¡Bienvenido a HabitosApp!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Pequeños hábitos, grandes cambios.',
+                    style: TextStyle(color: scheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 32),
 
-              // Campo del nombre
-              TextField(
-                controller: _nombreCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Tu nombre',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
+                  // Campo del nombre
+                  TextField(
+                    controller: _nombreCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Tu nombre',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
-              // Campo del objetivo, solo acepta teclado numérico
-              TextField(
-                controller: _objetivoCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Objetivo diario de hábitos',
-                  border: OutlineInputBorder(),
-                ),
-              ),
+                  // Campo del objetivo, solo acepta teclado numérico
+                  TextField(
+                    controller: _objetivoCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Objetivo diario de hábitos',
+                      prefixIcon: Icon(Icons.flag_outlined),
+                    ),
+                  ),
 
-              // Si hay error, lo mostramos en rojo
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(_error!, style: const TextStyle(color: Colors.red)),
-              ],
+                  // Si hay error, lo mostramos en rojo
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!, style: TextStyle(color: scheme.error)),
+                  ],
+                  const SizedBox(height: 28),
 
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _empezar,
-                  child: const Text('Empezar'),
-                ),
+                  ElevatedButton.icon(
+                    onPressed: _empezar,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: scheme.primary,
+                      foregroundColor: scheme.onPrimary,
+                    ),
+                    icon: const Icon(Icons.rocket_launch_outlined),
+                    label: const Text('Empezar'),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 }
-

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../models/habito.dart';
 import '../services/preferencias_service.dart';
 import '../widgets/habito_form_dialog.dart';
@@ -67,6 +66,11 @@ class _GestionHabitosScreenState extends State<GestionHabitosScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(100, 44),
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Borrar'),
           ),
         ],
@@ -79,46 +83,87 @@ class _GestionHabitosScreenState extends State<GestionHabitosScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final habitos = _habitos;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Gestionar hábitos')),
       // El botón + solo aparece cuando ya han cargado los datos
       floatingActionButton: habitos == null
           ? null
-          : FloatingActionButton(
+          : FloatingActionButton.extended(
         onPressed: _crear,
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('Nuevo hábito'),
       ),
       body: habitos == null
           ? const Center(child: CircularProgressIndicator())
           : habitos.isEmpty
-          ? const Center(child: Text('No hay hábitos. Pulsa + para crear uno.'))
-          : ListView.builder(
-        itemCount: habitos.length,
-        itemBuilder: (_, i) {
-          final h = habitos[i];
-          return ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Color(h.color),
-              radius: 12,
+          ? Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.playlist_add_rounded,
+                size: 80, color: scheme.primary.withOpacity(0.5)),
+            const SizedBox(height: 12),
+            Text(
+              'No hay hábitos. Pulsa + para crear uno.',
+              style: TextStyle(
+                fontSize: 16,
+                color: scheme.onSurfaceVariant,
+              ),
             ),
-            title: Text(h.nombre),
-            // Dos iconos a la derecha: editar y borrar
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.edit),
-                  onPressed: () => _editar(h),
+          ],
+        ),
+      )
+          : Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 700),
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+            itemCount: habitos.length,
+            itemBuilder: (_, i) {
+              final h = habitos[i];
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: scheme.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: scheme.outlineVariant),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete),
-                  onPressed: () => _borrar(h),
+                child: ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  leading: CircleAvatar(
+                    backgroundColor: Color(h.color),
+                    radius: 16,
+                  ),
+                  title: Text(
+                    h.nombre,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  // Dos iconos a la derecha: editar y borrar
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: () => _editar(h),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete_outline,
+                            color: scheme.error),
+                        onPressed: () => _borrar(h),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-          );
-        },
+              );
+            },
+          ),
+        ),
       ),
     );
   }

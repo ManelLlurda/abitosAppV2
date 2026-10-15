@@ -1,50 +1,39 @@
 import 'package:flutter/material.dart';
-import 'services/preferencias_service.dart';
 import 'screens/bienvenida_screen.dart';
 import 'screens/principal_screen.dart';
+import 'services/preferencias_service.dart';
 
 void main() {
   runApp(const HabitosApp());
 }
 
+/// StatefulWidget: guarda el estado global (tema, tamaño de letra, carga inicial).
 class HabitosApp extends StatefulWidget {
   const HabitosApp({super.key});
 
   @override
   State<HabitosApp> createState() => _HabitosAppState();
-
 }
 
-class _HabitosAppState extends State<HabitosApp>{
-  //_service es la unica instancia del servicio se la pasaremos a las pantallas para que todas usen la misma
+class _HabitosAppState extends State<HabitosApp> {
   final PreferenciasService _service = PreferenciasService();
 
-  //_cargando empieza en true al arrancar todavia no hemos leido nada
-  //_primeraVez, _osuro, _tamanoLetra guardan lo leido y cambiarlos redibuja la app
   bool _cargando = true;
   bool _primeraVez = true;
   bool _oscuro = false;
   double _tamanoLetra = PreferenciasService.tamanoLetraPorDefecto;
 
-  //initState se ejecuta una vex añ crearse eñ witjet ahi lanzamos la carga
-  //_cargar hace en orden abrir shared_preferences init y suma 1 al contador
-  //de apertura y leer los datos cada pasa espera al anterior con await
   @override
-  void initState(){
+  void initState() {
     super.initState();
     _cargar();
   }
 
-  //registrrApertura es un parameto aocional con valor por defecto true
-  Future<void> _cargar({bool registrarApertura = true}) async{
+  /// Lectura asíncrona inicial de SharedPreferences.
+  Future<void> _cargar({bool registrarApertura = true}) async {
     await _service.init();
     if (registrarApertura) await _service.registrarApertura();
-    //if !mounted return comprueba queel witjet sigue en pantalla tras la espera
-    //si no setstate dria error
-    if(!mounted) return;
-    //setsate avisa a flutter de que cambaron datos y que redibuje todo lo que
-    //cambie el aspecto va dentro y aqui pasmos _cargando a false asi
-    //desaparece el indicardo de carga
+    if (!mounted) return;
     setState(() {
       _primeraVez = _service.esPrimeraVez;
       _leerAjustes();
@@ -52,50 +41,100 @@ class _HabitosAppState extends State<HabitosApp>{
     });
   }
 
-  void _leerAjustes(){
+  void _leerAjustes() {
     _oscuro = _service.temaOscuro;
     _tamanoLetra = _service.tamanoLetra;
   }
 
-  //_recargar se llamara desde la pantalla de bienvenida caundo el usuario termine
-  //vuelva a leer todo y como bienedia_vista ya esta en true la app pasa a la parincipal
-  //no cuanta apertura porque es la misma sescion
-  Future<void> _recargar() async{
+  Future<void> _recargar() async {
     setState(() => _cargando = true);
     await _cargar(registrarApertura: false);
   }
 
-  //_borrardatos se llamara desde ajustas borrar todo y vuelva a cargar esPrimeraVez
-  //es true otra vez y sale a la bienvenida como recien instalada
-  Future<void> _borrarDatos() async{
+  Future<void> _borrarDatos() async {
     await _service.borrarTodo();
+    // Tras borrar, reabrimos como instalación nueva (cuenta como primera apertura).
     setState(() => _cargando = true);
     await _cargar();
   }
 
+  // Tema compartido (claro y oscuro) con bordes redondeados y botones pill.
+  ThemeData _tema(Brightness brillo) {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF00897B),
+      brightness: brillo,
+    );
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: brillo == Brightness.light
+          ? const Color(0xFFF3F8F6)
+          : scheme.surface,
+      appBarTheme: AppBarTheme(
+        centerTitle: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        titleTextStyle: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: scheme.onSurface,
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: scheme.surfaceContainerHigh.withOpacity(0.5), // Actualizado para compatibilidad
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: scheme.primary, width: 2),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      dialogTheme: DialogThemeData( // <-- SOLUCIÓN AL ERROR: Cambiado a DialogThemeData
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context){
+  Widget build(BuildContext context) {
     Widget home;
-    if(_cargando){
+    if (_cargando) {
       home = const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }else if(_primeraVez){
+    } else if (_primeraVez) {
       home = BienvenidaScreen(service: _service, onTerminar: _recargar);
-    }else{
+    } else {
       home = PrincipalScreen(
         service: _service,
         onAjustesCambiados: () => setState(_leerAjustes),
         onBorrarDatos: _borrarDatos,
       );
     }
+
     return MaterialApp(
       title: 'HabitosApp',
       debugShowCheckedModeBanner: false,
       themeMode: _oscuro ? ThemeMode.dark : ThemeMode.light,
-      theme: ThemeData(colorSchemeSeed: Colors.teal, useMaterial3: true),
-      darkTheme: ThemeData(
-          colorSchemeSeed: Colors.teal,
-          brightness: Brightness.dark,
-          useMaterial3: true),
+      theme: _tema(Brightness.light),
+      darkTheme: _tema(Brightness.dark),
+      // El tamaño de letra del ajuste escala todos los textos de la app.
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context)
             .copyWith(textScaler: TextScaler.linear(_tamanoLetra / 16)),
@@ -105,6 +144,3 @@ class _HabitosAppState extends State<HabitosApp>{
     );
   }
 }
-
-
-
