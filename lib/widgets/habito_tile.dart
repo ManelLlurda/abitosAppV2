@@ -69,7 +69,7 @@ class HabitoTile extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                           // Si está hecho, tachamos el texto
                           decoration:
-                          hecho ? TextDecoration.lineThrough : null,
+                              hecho ? TextDecoration.lineThrough : null,
                           color: hecho
                               ? scheme.onSurface.withOpacity(0.6)
                               : scheme.onSurface,

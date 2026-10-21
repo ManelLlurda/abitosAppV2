@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
-import 'screens/bienvenida_screen.dart';
+
+import 'models/usuario.dart';
+import 'screens/login_screen.dart';
 import 'screens/principal_screen.dart';
+import 'screens/registro_screen.dart';
+import 'services/db_helper.dart';
 import 'services/preferencias_service.dart';
+import 'services/servicios.dart';
 
 void main() {
   runApp(const HabitosApp());
 }
 
-/// StatefulWidget: guarda el estado global (tema, tamaño de letra, carga inicial).
+/// StatefulWidget: guarda el estado global (sesión, tema, tamaño de letra, carga inicial).
 class HabitosApp extends StatefulWidget {
   const HabitosApp({super.key});
 
@@ -16,46 +21,89 @@ class HabitosApp extends StatefulWidget {
 }
 
 class _HabitosAppState extends State<HabitosApp> {
-  final PreferenciasService _service = PreferenciasService();
+  final Servicios _s = Servicios();
 
   bool _cargando = true;
-  bool _primeraVez = true;
+  String? _errorInicio; // si la BD no se puede abrir, se enseña aquí
+  bool _hayUsuarios = false; // false = primera vez: toca registrarse
+  Usuario? _usuario; // null = nadie con la sesión abierta
   bool _oscuro = false;
   double _tamanoLetra = PreferenciasService.tamanoLetraPorDefecto;
 
   @override
   void initState() {
     super.initState();
-    _cargar();
+    _arrancar();
   }
 
-  /// Lectura asíncrona inicial de SharedPreferences.
-  Future<void> _cargar({bool registrarApertura = true}) async {
-    await _service.init();
-    if (registrarApertura) await _service.registrarApertura();
-    if (!mounted) return;
-    setState(() {
-      _primeraVez = _service.esPrimeraVez;
-      _leerAjustes();
-      _cargando = false;
-    });
+  /// Lectura asíncrona inicial: preferencias, sesión guardada y base de datos.
+  Future<void> _arrancar() async {
+    try {
+      await _s.prefs.init();
+
+      // ¿Había una sesión abierta de la última vez?
+      Usuario? usuario;
+      final id = _s.prefs.usuarioSesion;
+      if (id != null) {
+        usuario = await _s.usuarios.porId(id);
+        if (usuario == null) {
+          // El usuario ya no existe (se borró): cerramos la sesión
+          await _s.prefs.cerrarSesion();
+        } else {
+          // Abrir la app con la sesión guardada cuenta como una apertura
+          await _s.estadisticas.registrarApertura(usuario.id!);
+        }
+      }
+
+      final hay = usuario != null || await _s.usuarios.contar() > 0;
+      if (!mounted) return;
+      setState(() {
+        _usuario = usuario;
+        _hayUsuarios = hay;
+        _leerAjustes();
+        _cargando = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorInicio = '$e';
+        _cargando = false;
+      });
+    }
   }
 
   void _leerAjustes() {
-    _oscuro = _service.temaOscuro;
-    _tamanoLetra = _service.tamanoLetra;
+    _oscuro = _s.prefs.temaOscuro;
+    _tamanoLetra = _s.prefs.tamanoLetra;
   }
 
-  Future<void> _recargar() async {
-    setState(() => _cargando = true);
-    await _cargar(registrarApertura: false);
+  /// Login o registro correctos: guardamos la sesión y pasamos a la principal.
+  Future<void> _iniciarSesion(Usuario u) async {
+    await _s.prefs.guardarSesion(u.id!);
+    await _s.estadisticas.registrarApertura(u.id!);
+    if (!mounted) return;
+    setState(() {
+      _usuario = u;
+      _hayUsuarios = true;
+    });
   }
 
-  Future<void> _borrarDatos() async {
-    await _service.borrarTodo();
-    // Tras borrar, reabrimos como instalación nueva (cuenta como primera apertura).
-    setState(() => _cargando = true);
-    await _cargar();
+  Future<void> _cerrarSesion() async {
+    await _s.prefs.cerrarSesion();
+    if (!mounted) return;
+    setState(() => _usuario = null);
+  }
+
+  /// Solo admin: vacía la BD y las preferencias. La app queda como recién instalada.
+  Future<void> _borrarTodo() async {
+    await DbHelper.instancia.borrarTodo();
+    await _s.prefs.borrarTodo();
+    if (!mounted) return;
+    setState(() {
+      _usuario = null;
+      _hayUsuarios = false;
+      _leerAjustes();
+    });
   }
 
   // Tema compartido (claro y oscuro) con bordes redondeados y botones pill.
@@ -67,9 +115,8 @@ class _HabitosAppState extends State<HabitosApp> {
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: brillo == Brightness.light
-          ? const Color(0xFFF3F8F6)
-          : scheme.surface,
+      scaffoldBackgroundColor:
+      brillo == Brightness.light ? const Color(0xFFF3F8F6) : scheme.surface,
       appBarTheme: AppBarTheme(
         centerTitle: false,
         backgroundColor: Colors.transparent,
@@ -83,7 +130,7 @@ class _HabitosAppState extends State<HabitosApp> {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: scheme.surfaceContainerHigh.withOpacity(0.5), // Actualizado para compatibilidad
+        fillColor: scheme.surfaceContainerHighest.withOpacity(0.5),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -95,7 +142,12 @@ class _HabitosAppState extends State<HabitosApp> {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
+          backgroundColor: scheme.primary,
+          foregroundColor: scheme.onPrimary,
+          // Ancho mínimo normal: si queremos un botón a todo el ancho lo
+          // envolvemos en un SizedBox(width: double.infinity). Así los botones
+          // también caben dentro de los diálogos.
+          minimumSize: const Size(88, 52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),
           ),
@@ -107,8 +159,40 @@ class _HabitosAppState extends State<HabitosApp> {
         foregroundColor: scheme.onPrimary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
-      dialogTheme: DialogThemeData( // <-- SOLUCIÓN AL ERROR: Cambiado a DialogThemeData
+      dialogTheme: DialogThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+    );
+  }
+
+  Widget _pantallaError() {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text(
+                  'No se pudo abrir la base de datos',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                Text(_errorInicio!, textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                const Text(
+                  'Si estás en web, ejecuta una vez en la terminal:\n'
+                      'dart run sqflite_common_ffi_web:setup\n'
+                      'y vuelve a lanzar la app.',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -118,14 +202,27 @@ class _HabitosAppState extends State<HabitosApp> {
     Widget home;
     if (_cargando) {
       home = const Scaffold(body: Center(child: CircularProgressIndicator()));
-    } else if (_primeraVez) {
-      home = BienvenidaScreen(service: _service, onTerminar: _recargar);
-    } else {
+    } else if (_errorInicio != null) {
+      home = _pantallaError();
+    } else if (_usuario != null) {
       home = PrincipalScreen(
-        service: _service,
+        // La key hace que, si entra otro usuario, la pantalla se cree de cero
+        key: ValueKey(_usuario!.id),
+        servicios: _s,
+        usuario: _usuario!,
         onAjustesCambiados: () => setState(_leerAjustes),
-        onBorrarDatos: _borrarDatos,
+        onCerrarSesion: _cerrarSesion,
+        onBorrarTodo: _borrarTodo,
       );
+    } else if (!_hayUsuarios) {
+      // Primera vez que se abre la app: no hay ningún usuario
+      home = RegistroScreen(
+        servicios: _s,
+        onAutenticado: _iniciarSesion,
+        primeraVez: true,
+      );
+    } else {
+      home = LoginScreen(servicios: _s, onAutenticado: _iniciarSesion);
     }
 
     return MaterialApp(
